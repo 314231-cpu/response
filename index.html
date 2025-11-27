@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧回覆系統儀表板</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 使用 Inter 字體以保持現代感，並設置較淺的整體背景 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcf8f3; /* 極淺的奶油色 */
+        }
+        /* 定義馬卡龍色系的卡片背景 */
+        .card-macaron-1 { background-color: #ffe6e6; } /* 柔和粉 */
+        .card-macaron-2 { background-color: #e6f7ff; } /* 天空藍 */
+        .card-macaron-3 { background-color: #e6ffef; } /* 薄荷綠 */
+        .card-macaron-4 { background-color: #fffde6; } /* 檸檬黃 */
+
+        /* 自定義滾動條樣式 (美化紀錄區) */
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .log-container::-webkit-scrollbar-thumb {
+            background: #fbcfe8; /* 淺粉色 */
+            border-radius: 4px;
+        }
+        .log-container::-webkit-scrollbar-track {
+            background: #fff;
+        }
+    </style>
+</head>
+<body class="p-4 lg:p-8">
+
+    <header class="text-center mb-8">
+        <h1 class="text-4xl font-extrabold text-pink-600 tracking-wider">
+            🤖 智慧回覆系統 (AI + Firebase)
+        </h1>
+        <p class="text-gray-500 mt-2 text-lg">
+            高中生專案：學習 AI 模型與即時資料庫的協作
+        </p>
+        <p class="text-xs text-gray-400 mt-1">
+            當前用戶 ID (Firestore Private ID): <span id="userIdDisplay" class="font-mono text-gray-600">Loading...</span>
+        </p>
+    </header>
+
+    <!-- 主儀表板網格佈局 -->
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+
+        <!-- 1. 左側控制面板 (Control Panel) -->
+        <section class="lg:col-span-1 p-6 card-macaron-1 rounded-2xl shadow-xl transition-all hover:shadow-2xl h-fit">
+            <h2 class="text-2xl font-bold text-pink-700 mb-4 border-b-2 border-pink-300 pb-2">⚙️ 控制面板</h2>
+
+            <div class="space-y-4">
+                <!-- 模型選擇 -->
+                <div>
+                    <label for="modelSelect" class="block text-sm font-medium text-pink-600 mb-1">AI 模型選擇</label>
+                    <select id="modelSelect" class="w-full p-2 border border-pink-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 bg-white">
+                        <option value="flash">Gemini Flash (即時回覆)</option>
+                        <option value="pro">Gemini Pro (創意模式)</option>
+                        <option value="student">學生訓練模型 (輕量)</option>
+                    </select>
+                </div>
+
+                <!-- 系統指令 -->
+                <div>
+                    <label for="systemPrompt" class="block text-sm font-medium text-pink-600 mb-1">系統指令 / 角色設定</label>
+                    <textarea id="systemPrompt" rows="3" class="w-full p-2 border border-pink-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 bg-white" placeholder="例如：你是一位友善的高中化學老師，用有趣的口吻回答。"></textarea>
+                </div>
+
+                <!-- 用戶輸入 -->
+                <div>
+                    <label for="userPrompt" class="block text-sm font-medium text-pink-600 mb-1">你的問題 / 測試輸入</label>
+                    <textarea id="userPrompt" rows="2" class="w-full p-2 border border-pink-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 bg-white" placeholder="例如：為什麼天空是藍色的？"></textarea>
+                </div>
+
+                <!-- 操作按鈕 -->
+                <button id="sendPromptButton" class="w-full py-3 bg-pink-500 text-white font-semibold rounded-xl shadow-md hover:bg-pink-600 transition duration-150 transform hover:scale-[1.01] disabled:opacity-50" disabled>
+                    🚀 啟動智慧回覆
+                </button>
+            </div>
+        </section>
+
+        <!-- 2. 中間圖表與示意圖 (Charts & Diagram) -->
+        <section class="lg:col-span-1 space-y-6">
+
+            <!-- 2a. 系統狀態卡片 -->
+            <div class="p-6 card-macaron-2 rounded-2xl shadow-xl transition-all hover:shadow-2xl">
+                <h2 class="text-2xl font-bold text-blue-700 mb-4 border-b-2 border-blue-300 pb-2">📊 即時關鍵指標</h2>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-white p-3 rounded-lg shadow-inner">
+                        <p class="text-4xl font-extrabold text-blue-600" id="avgLatency">N/A</p>
+                        <p class="text-sm text-gray-500 mt-1">平均延遲 (ms)</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow-inner">
+                        <p class="text-4xl font-extrabold text-green-600" id="totalReplies">0</p>
+                        <p class="text-sm text-gray-500 mt-1">總回覆次數</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2b. 系統示意圖 -->
+            <div class="p-6 card-macaron-3 rounded-2xl shadow-xl transition-all hover:shadow-2xl">
+                <h2 class="text-2xl font-bold text-green-700 mb-4 border-b-2 border-green-300 pb-2">💡 系統運行示意</h2>
+                <div class="flex items-center justify-between text-center space-x-2">
+                    <!-- 用戶輸入 -->
+                    <div class="flex-1 p-3 rounded-lg bg-green-100 border border-green-500">
+                        <span class="text-lg font-bold text-green-700">用戶輸入</span>
+                    </div>
+
+                    <span class="text-xl text-gray-500">➡️</span>
+
+                    <!-- AI 模型 -->
+                    <div class="flex-1 p-3 rounded-full bg-purple-200 border-4 border-purple-500 shadow-md transform hover:scale-105 transition duration-300">
+                        <span class="text-lg font-bold text-purple-700">AI 模型</span>
+                        <p class="text-xs text-purple-500">（正在生成...）</p>
+                    </div>
+
+                    <span class="text-xl text-gray-500">➡️</span>
+
+                    <!-- Firestore 儲存 -->
+                    <div class="flex-1 p-3 rounded-lg bg-red-100 border border-red-500">
+                        <span class="text-lg font-bold text-red-700">Firestore DB</span>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4 p-2 bg-white rounded-lg border border-gray-200">
+                    此系統的關鍵是 **Firestore**：它負責即時接收 AI 的回覆並立即推送到**右側紀錄區**。為了確保權限，紀錄將儲存在當前用戶的私有收藏集內，實現即時同步與紀錄功能。
+                </p>
+            </div>
+        </section>
+
+        <!-- 3. 右側即時紀錄區 (Real-time Log) -->
+        <section class="lg:col-span-1 p-6 card-macaron-4 rounded-2xl shadow-xl transition-all hover:shadow-2xl">
+            <h2 class="text-2xl font-bold text-yellow-700 mb-4 border-b-2 border-yellow-300 pb-2">⏳ 即時回覆紀錄</h2>
+            <div id="logContainer" class="log-container h-[500px] overflow-y-auto space-y-4 pr-2">
+                <!-- 紀錄將由 JavaScript 動態插入 -->
+                <p class="text-gray-400 italic text-center pt-8">
+                    等待第一個智慧回覆...
+                </p>
+            </div>
+            <div id="messageBox" class="mt-4 hidden p-3 rounded-lg text-white font-medium"></div>
+        </section>
+
+    </main>
+
+    <!-- JavaScript for Firebase and Application Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 設定 Firebase 服務
+        setLogLevel('Debug');
+        // 使用 Canvas 環境提供的 App ID 來建構 Firestore 路徑
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // ** 用戶提供的 Firebase 配置 - 已整合您的參數 **
+        const firebaseConfig = {
+            apiKey: "AIzaSyC_O4q6iceE-puUM39IU1pFzpcGIWAyATA",
+            authDomain: "sunny1127.firebaseapp.com",
+            projectId: "sunny1127",
+            storageBucket: "sunny1127.firebasestorage.app",
+            messagingSenderId: "997426807556",
+            appId: "1:997426807556:web:c8a40d54027fe26a190651"
+        };
+        
+        // 確保使用正確的環境變數名稱 - 修正錯誤: 應該是 __initial_auth_token
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        const sendPromptButton = document.getElementById('sendPromptButton');
+        const logContainer = document.getElementById('logContainer');
+        const userPromptInput = document.getElementById('userPrompt');
+        const systemPromptInput = document.getElementById('systemPrompt');
+        const modelSelect = document.getElementById('modelSelect');
+        const messageBox = document.getElementById('messageBox');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const avgLatencyDisplay = document.getElementById('avgLatency');
+        const totalRepliesDisplay = document.getElementById('totalReplies');
+
+        // --- 工具函數 ---
+
+        /** 顯示自定義訊息框 (取代 alert) */
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.className = `mt-4 p-3 rounded-lg font-medium transition-all ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            messageBox.classList.remove('hidden');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        /** 轉換為馬卡龍色的 CSS 類別 */
+        function getMacaronColor(index) {
+            const colors = [
+                'bg-pink-100 text-pink-700 border-pink-300',
+                'bg-blue-100 text-blue-700 border-blue-300',
+                'bg-green-100 text-green-700 border-green-300',
+                'bg-yellow-100 text-yellow-700 border-yellow-300',
+            ];
+            return colors[index % colors.length];
+        }
+
+        // --- 核心邏輯 ---
+
+        /** 初始化 Firebase 與身份驗證 */
+        async function initializeFirebase() {
+            try {
+                // 檢查配置是否遺失 (現在是硬編碼，所以應該不會遺失)
+                if (!firebaseConfig.projectId) {
+                    console.error("Firebase Configuration is missing or invalid.");
+                    showMessage("錯誤：Firebase 配置遺失或無效。", true);
+                    return;
+                }
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // 身份驗證
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        console.log("Firebase Auth Ready. User ID:", userId);
+                        isAuthReady = true;
+                        sendPromptButton.disabled = false;
+                        setupFirestoreListeners();
+                    } else {
+                        // 如果沒有 token，則匿名登入
+                        signInAnonymously(auth)
+                            .then(() => {
+                                console.log("Signed in anonymously.");
+                            })
+                            .catch((error) => {
+                                console.error("Anonymous sign-in failed:", error);
+                                showMessage("錯誤：無法進行匿名登入。", true);
+                            });
+                    }
+                });
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                }
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                showMessage("初始化 Firebase 失敗，請檢查配置。", true);
+            }
+        }
+
+        /** 設定 Firestore 即時監聽 (右側紀錄區) */
+        function setupFirestoreListeners() {
+            if (!isAuthReady || !db) return;
+
+            // 使用私有路徑：/artifacts/{appId}/users/{userId}/ai_replies
+            const replyCollectionPath = `artifacts/${appId}/users/${userId}/ai_replies`;
+            
+            // 重新引入 orderBy，私有路徑通常允許按時間排序。
+            const q = query(
+                collection(db, replyCollectionPath),
+                orderBy("timestamp", "desc"), // 伺服器端排序 (最新在上)
+                limit(15) // 只顯示最新的 15 筆紀錄
+            );
+
+            onSnapshot(q, (snapshot) => {
+                const replies = [];
+                let totalLatency = 0;
+                let count = 0;
+
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    replies.push({ id: doc.id, ...data });
+                    if (typeof data.latency === 'number') {
+                        totalLatency += data.latency;
+                        count++;
+                    }
+                });
+
+                // 更新關鍵指標
+                totalRepliesDisplay.textContent = count;
+                if (count > 0) {
+                    avgLatencyDisplay.textContent = (totalLatency / count).toFixed(1);
+                } else {
+                    avgLatencyDisplay.textContent = 'N/A';
+                }
+
+                renderLogs(replies);
+
+            }, (error) => {
+                console.error("Firestore real-time listener failed:", error);
+                showMessage("即時紀錄讀取失敗。", true);
+            });
+        }
+
+        /** 渲染紀錄到右側面板 */
+        function renderLogs(replies) {
+            logContainer.innerHTML = ''; // 清空現有內容
+
+            if (replies.length === 0) {
+                logContainer.innerHTML = '<p class="text-gray-400 italic text-center pt-8">目前尚無回覆紀錄...</p>';
+                return;
+            }
+
+            replies.forEach((reply, index) => {
+                const time = reply.timestamp?.toDate ? reply.timestamp.toDate().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                const colorClass = getMacaronColor(index);
+
+                const logItem = document.createElement('div');
+                logItem.className = `p-3 border rounded-xl shadow-md ${colorClass} text-sm transition-all hover:shadow-lg`;
+                logItem.innerHTML = `
+                    <div class="font-bold border-b border-opacity-50 pb-1 mb-1 flex justify-between items-center">
+                        <span>回覆 #${replies.length - index} <span class="text-xs font-normal">(${reply.model || 'N/A'})</span></span>
+                        <span class="font-normal text-xs opacity-70">${time}</span>
+                    </div>
+                    <p class="mt-1"><span class="font-semibold">輸入:</span> ${reply.prompt}</p>
+                    <p class="mt-1"><span class="font-semibold">回覆:</span> ${reply.reply.substring(0, 100)}${reply.reply.length > 100 ? '...' : ''}</p>
+                    <div class="text-xs mt-1 pt-1 border-t border-opacity-30 flex justify-between">
+                        <span>延遲: ${reply.latency !== undefined ? reply.latency.toFixed(0) + 'ms' : 'N/A'}</span>
+                        <span title="此ID由輸入用戶生成">${reply.user === userId ? '🙋 我' : '❌ 其他用戶 (Private Path)'}</span>
+                    </div>
+                `;
+                logContainer.appendChild(logItem);
+            });
+
+            // 確保滾動到底部以查看最新紀錄
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        /** 模擬 AI 呼叫並將結果寫入 Firestore */
+        async function handleSendPrompt() {
+            if (!isAuthReady || !db) {
+                showMessage("系統尚未準備就緒，請稍候。", true);
+                return;
+            }
+
+            const prompt = userPromptInput.value.trim();
+            const systemPrompt = systemPromptInput.value.trim();
+            const model = modelSelect.value;
+
+            if (!prompt) {
+                showMessage("請輸入要測試的問題。", true);
+                return;
+            }
+
+            // 禁用按鈕並顯示載入狀態
+            sendPromptButton.disabled = true;
+            sendPromptButton.textContent = '⚙️ 正在思考中...';
+            userPromptInput.value = ''; // 清空輸入框
+
+            const startTime = Date.now();
+
+            try {
+                // 1. 準備 API 呼叫的 Payload
+                const systemInstruction = systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined;
+
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    // 啟用 Google Search Grounding (用於知識型回覆)
+                    tools: [{ "google_search": {} }],
+                };
+
+                // 添加系統指令 (如果存在)
+                if (systemInstruction) {
+                    payload.systemInstruction = systemInstruction;
+                }
+
+                const apiKey = ""; // Canvas Runtime 會自動提供
+                // 使用 gemini-2.5-flash-preview-09-2025 模型
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                let response;
+                let success = false;
+                let maxRetries = 3;
+                let delay = 1000;
+
+                // 實作指數退避 (Exponential Backoff) 進行重試
+                for (let i = 0; i < maxRetries; i++) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            success = true;
+                            break;
+                        } else if (response.status === 429) {
+                            // 達到頻率限制，等待並重試
+                            console.warn(`Rate limit exceeded. Retrying in ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                        } else {
+                            // 其他非預期錯誤，不重試
+                            const errorData = await response.json();
+                            throw new Error(`API Error: ${response.status} - ${errorData.error?.message || 'Unknown API error'}`);
+                        }
+                    } catch (error) {
+                        if (i === maxRetries - 1) throw error; // 最後一次嘗試失敗，拋出錯誤
+                        // 連線錯誤等，等待並重試
+                        console.warn(`Fetch failed. Retrying in ${delay / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                    }
+                }
+
+                if (!success) {
+                    throw new Error("API call failed after multiple retries.");
+                }
+
+                const result = await response.json();
+                const endTime = Date.now();
+                const latency = endTime - startTime;
+
+                const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || "AI 未能生成有效回覆。";
+
+                // 2. 將結果存入 Firestore
+                const replyCollectionPath = `artifacts/${appId}/users/${userId}/ai_replies`;
+                await addDoc(collection(db, replyCollectionPath), {
+                    user: userId,
+                    prompt: prompt,
+                    systemInstruction: systemPrompt,
+                    model: model, // 雖然 API 使用 flash，但我們紀錄用戶選擇的 model
+                    reply: generatedText,
+                    latency: latency,
+                    timestamp: serverTimestamp(),
+                });
+
+                showMessage("智慧回覆成功！結果已即時同步到紀錄區。", false);
+
+            } catch (error) {
+                console.error("處理智慧回覆時發生錯誤:", error);
+                showMessage(`處理回覆失敗: ${error.message || '未知錯誤'}`, true);
+            } finally {
+                // 恢復按鈕狀態
+                sendPromptButton.disabled = false;
+                sendPromptButton.textContent = '🚀 啟動智慧回覆';
+            }
+        }
+
+        // --- 啟動與事件監聽 ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+            sendPromptButton.addEventListener('click', handleSendPrompt);
+        });
+
+    </script>
+</body>
+</html>
